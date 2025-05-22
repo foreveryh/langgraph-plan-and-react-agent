@@ -1,8 +1,7 @@
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite import SqliteSaver # Or any other checkpointer
 
 from .state import PlanExecute
-from .planner import get_plan
+from .planner import plan_step  # Updated import
 from .executor import execute_step
 from .replanner import replan_step
 
@@ -10,7 +9,7 @@ from .replanner import replan_step
 workflow = StateGraph(PlanExecute)
 
 # Add the nodes
-workflow.add_node("planner", get_plan)
+workflow.add_node("planner", plan_step)  # Updated function mapping
 workflow.add_node("executor", execute_step)
 workflow.add_node("replanner", replan_step)
 
@@ -22,21 +21,20 @@ workflow.add_edge("planner", "executor")
 workflow.add_edge("executor", "replanner")
 
 # Define conditional logic for continuing or finishing after replanning
-def after_replanning(state: PlanExecute):
-    """Determines the next step after the replanner has run."""
-    if not state["plan"] or not state["plan"][0]:
-        # If the plan is empty or the next step is empty, the process ends.
+def should_end(state: PlanExecute):  # Renamed and logic adjusted
+    """Determines whether to end the process or continue to the agent (executor)."""
+    if "response" in state and state["response"]:
         return END
     else:
-        # Otherwise, proceed to execute the next step of the (potentially updated) plan.
-        return "executor"
+        # Corresponds to 'agent' in the example, which is our 'executor' node
+        return "executor"  
 
 workflow.add_conditional_edges(
     "replanner",
-    after_replanning,
+    should_end,  # Updated function
     {
         END: END,
-        "executor": "executor",
+        "executor": "executor", 
     }
 )
 
